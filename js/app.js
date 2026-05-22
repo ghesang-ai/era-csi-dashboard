@@ -311,14 +311,23 @@ function applyFilters() {
       return true; // 'all'
     });
   } else {
+    // Parse YYYY-MM-DD sebagai lokal midnight (bukan UTC) agar sama-hari cocok
+    const localDate = str => { const [y, m, d] = str.split('-'); return new Date(+y, +m - 1, +d); };
     if (f.dateFrom) {
-      const from = new Date(f.dateFrom);
-      records = records.filter(r => r.date && r.date >= from);
+      const from = localDate(f.dateFrom);
+      records = records.filter(r => {
+        if (!r.date) return false;
+        const d = new Date(r.date.getFullYear(), r.date.getMonth(), r.date.getDate());
+        return d >= from;
+      });
     }
     if (f.dateTo) {
-      const to = new Date(f.dateTo);
-      to.setHours(23, 59, 59, 999);
-      records = records.filter(r => r.date && r.date <= to);
+      const to = localDate(f.dateTo);
+      records = records.filter(r => {
+        if (!r.date) return false;
+        const d = new Date(r.date.getFullYear(), r.date.getMonth(), r.date.getDate());
+        return d <= to;
+      });
     }
   }
 
