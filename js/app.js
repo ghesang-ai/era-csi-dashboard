@@ -74,6 +74,7 @@ async function init() {
   CONFIG = window.ERA_CSI_CONFIG || {};
   setupFilters();
   setupEventListeners();
+  setupDrillModal();
   await fetchData();
   startAutoRefresh();
 }
@@ -1089,4 +1090,187 @@ function showToast(msg, type = 'info') {
     toast.classList.remove('toast-show');
     setTimeout(() => toast.remove(), 300);
   }, 4000);
+}
+
+// =====================================================================
+// DRILL-DOWN MODAL
+// =====================================================================
+const DRILL_CONFIG = {
+  eraspace: {
+    title: 'Eraspace Membership',
+    icon: '💳',
+    target: TARGETS.eraspace,
+    getKpi: r => r.deal > 0 ? (r.eraspace / r.deal * 100) : 0,
+    label: 'Penetrasi',
+    unit: '%',
+  },
+  bundle: {
+    title: 'Bundling Video Lite',
+    icon: '📺',
+    target: TARGETS.bundle,
+    getKpi: r => r.deal > 0 ? (r.bundling / r.deal * 100) : 0,
+    label: 'Attach Rate',
+    unit: '%',
+  },
+  csi: {
+    title: 'CSI Review Rate',
+    icon: '⭐',
+    target: TARGETS.csi,
+    getKpi: r => r.deal > 0 ? (r.csi / r.deal * 100) : 0,
+    label: 'CSI Rate',
+    unit: '%',
+  },
+  greview: {
+    title: 'Google Bisnis Review',
+    icon: '🔍',
+    target: TARGETS.greview,
+    getKpi: r => r.deal > 0 ? (r.greview / r.deal * 100) : 0,
+    label: 'Review Rate',
+    unit: '%',
+  },
+  ig: {
+    title: 'IG Follow Rate',
+    icon: '📸',
+    target: TARGETS.ig,
+    getKpi: r => r.deal > 0 ? (r.ig / r.deal * 100) : 0,
+    label: 'Follow Rate',
+    unit: '%',
+  },
+  source: {
+    title: 'Customer Source',
+    icon: '🌐',
+    target: null,
+    getKpi: r => r.deal,
+    label: 'Total Deal',
+    unit: '',
+  },
+};
+
+function statusClass(val, target) {
+  if (!target) return '';
+  if (val >= target)           return 'kpi-success';
+  if (val >= target * 0.8)     return 'kpi-warning';
+  return 'kpi-danger';
+}
+
+function openDrillModal(type) {
+  const cfg = DRILL_CONFIG[type];
+  if (!cfg) return;
+
+  // Aggregate per toko dari filteredRecords
+  const byToko = {};
+  filteredRecords.forEach(r => {
+    if (!byToko[r.toko]) byToko[r.toko] = { toko: r.toko, records: [] };
+    byToko[r.toko].records.push(r);
+  });
+
+  // Semua toko yang pernah ada di rawData (historis)
+  const allTokos = [...new Set(rawData.map(r => (r[COL.TOKO] || '').trim()).filter(Boolean))].sort();
+  const submittedTokos = new Set(Object.keys(byToko));
+  const missingTokos = allTokos.filter(t => !submittedTokos.has(t));
+
+  // Hitung KPI per toko yang submit
+  const submittedList = Object.values(byToko).map(({ toko, records }) => {
+    const agg = records.reduce((a, r) => {
+      a.deal     += r.deal;
+      a.eraspace += r.eraspace;
+      a.bundling += r.bundling;
+      a.csi      += r.csi;
+      a.greview  += r.greview;
+      a.ig       += r.ig;
+      return a;
+    }, { deal: 0, eraspace: 0, bundling: 0, csi: 0, greview: 0, ig: 0 });
+    const kpi = cfg.getKpi(agg);
+    return { toko, kpi, agg };
+  }).sort((a, b) => b.kpi - a.kpi);
+
+  // Render modal
+  document.getElementById('modal-icon').textContent  = cfg.icon;
+  document.getElementById('modal-title').textContent = cfg.title;
+  document.getElementById('modal-meta').textContent  =
+    `${submittedList.length} toko sudah submit · ${missingTokos.length} belum submit · periode aktif`;
+
+  const body = document.getElementById('modal-body');
+  body.innerHTML = '';
+
+  // Section: sudah submit
+  const secSubmit = document.createElement('div');
+  secSubmit.innerHTML = `<div class="modal-section-title submitted">✅ Sudah Submit (${submittedList.length} toko)</div>`;
+  const listSubmit = document.createElement('div');
+  listSubmit.className = 'modal-store-list';
+
+  submittedList.forEach(({ toko, kpi }) => {
+    const row = document.createElement('div');
+    row.className = 'modal-store-row';
+    const cls = statusClass(kpi, cfg.target);
+    const val = cfg.unit === '%' ? kpi.toFixed(1) + '%' : kpi.toLocaleString('id-ID');
+    row.innerHTML = `
+      <span class="modal-store-name">${toko}</span>
+      <span class="modal-store-kpi ${cls}">${val}</span>
+    `;
+    listSubmit.appendChild(row);
+  });
+  secSubmit.appendChild(listSubmit);
+  body.appendChild(secSubmit);
+
+  // Section: belum submit
+  if (missingTokos.length > 0) {
+    const secMissing = document.createElement('div');
+    secMissing.innerHTML = `<div class="modal-section-title missing">❌ Belum Submit (${missingTokos.length} toko)</div>`;
+    const listMissing = document.createElement('div');
+    listMissing.className = 'modal-store-list';
+    missingTokos.forEach(toko => {
+      const row = document.createElement('div');
+      row.className = 'modal-store-row not-submitted';
+      row.innerHTML = `
+        <span class="modal-store-name">${toko}</span>
+        <span class="modal-store-kpi">Belum ada data</span>
+      `;
+      listMissing.appendChild(row);
+    });
+    secMissing.appendChild(listMissing);
+    body.appendChild(secMissing);
+  }
+
+  document.getElementById('drill-modal').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDrillModal() {
+  document.getElementById('drill-modal').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function setupDrillModal() {
+  document.getElementById('modal-close').addEventListener('click', closeDrillModal);
+  document.getElementById('drill-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('drill-modal')) closeDrillModal();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeDrillModal();
+  });
+
+  const cards = [
+    { id: 'm2-title', type: 'source' },
+    { id: 'm3-title', type: 'eraspace' },
+    { id: 'm4-title', type: 'bundle' },
+    { id: 'm5-title', type: 'csi' },
+    { id: 'm6-title', type: 'greview' },
+    { id: 'm7-title', type: 'ig' },
+  ];
+
+  cards.forEach(({ id, type }) => {
+    const article = document.getElementById(id)?.closest('article');
+    if (!article) return;
+    article.classList.add('card-clickable');
+    // Tambah hint "Klik untuk detail"
+    const header = article.querySelector('.card-header');
+    if (header) {
+      const hint = document.createElement('span');
+      hint.className = 'card-click-hint';
+      hint.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Detail`;
+      header.appendChild(hint);
+    }
+    article.addEventListener('click', () => openDrillModal(type));
+  });
 }

@@ -463,6 +463,23 @@
 <!-- Toast Container -->
 <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="false"></div>
 
+<!-- ================================================================
+     DRILL-DOWN MODAL
+     ================================================================ -->
+<div class="modal-overlay" id="drill-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <span class="modal-icon" id="modal-icon"></span>
+        <h3 class="modal-title" id="modal-title">Detail</h3>
+      </div>
+      <button class="modal-close" id="modal-close" aria-label="Tutup">&times;</button>
+    </div>
+    <div class="modal-meta" id="modal-meta"></div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
 <!-- Visually hidden for screen readers -->
 <style>
   .sr-only {
