@@ -1,0 +1,13 @@
+.env
+config/config.js
+node_modules/
+.DS_Store
+*.log
+
+# Local Netlify folder
+.netlify
+
+# Claude Code
+.claude/
+.claudeignore
+ERA-CSI_CLAUDE_CODE_PROMPT.md

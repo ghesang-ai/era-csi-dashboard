@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ERA-CSI Dashboard — Customer Satisfaction Index, Erafone Region 5">
+  <title>ERA-CSI Dashboard | Erafone Region 5</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- Config (DO NOT commit with real keys) -->
+  <script src="config/config.js"></script>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ================================================================
+     HEADER
+     ================================================================ -->
+<header class="header" role="banner">
+  <div class="header-top">
+    <!-- Logo -->
+    <div class="logo">
+      <div class="logo-icon" aria-hidden="true">CSI</div>
+      <div class="logo-text">
+        <div class="logo-title">ERA-CSI Dashboard</div>
+        <div class="logo-sub">Erajaya Digital · Region 5 · Jakarta Pusat &amp; Jakarta Barat</div>
+      </div>
+    </div>
+
+    <!-- Meta & Actions -->
+    <div class="header-meta">
+      <span class="last-refresh" id="last-refresh" aria-live="polite">Memuat data...</span>
+      <button class="btn btn-secondary" id="btn-refresh" title="Refresh data sekarang" aria-label="Refresh data">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar" role="search" aria-label="Filter dashboard">
+    <span class="filter-label">Filter:</span>
+    <div class="filter-group">
+      <label class="sr-only" for="filter-tsh">Supervisor (TSH)</label>
+      <select id="filter-tsh" aria-label="Filter berdasarkan supervisor TSH">
+        <option value="all">Semua TSH</option>
+      </select>
+
+      <label class="sr-only" for="filter-toko">Toko</label>
+      <select id="filter-toko" aria-label="Filter berdasarkan toko">
+        <option value="all">Semua Toko</option>
+      </select>
+
+      <label class="sr-only" for="filter-periode">Periode</label>
+      <select id="filter-periode" aria-label="Filter berdasarkan periode">
+        <option value="today">Hari Ini</option>
+        <option value="week">7 Hari Terakhir</option>
+        <option value="month" selected>Bulan Ini</option>
+        <option value="all">Semua Data</option>
+        <option value="custom">Custom Range</option>
+      </select>
+
+      <div class="custom-date-range" id="custom-date-range" aria-label="Rentang tanggal kustom">
+        <label class="sr-only" for="filter-date-from">Dari tanggal</label>
+        <input type="date" id="filter-date-from" aria-label="Dari tanggal">
+        <span style="color:var(--text-muted);font-size:12px">s/d</span>
+        <label class="sr-only" for="filter-date-to">Sampai tanggal</label>
+        <input type="date" id="filter-date-to" aria-label="Sampai tanggal">
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Loading Overlay -->
+<div class="loading-state" id="loading-state" role="status" aria-label="Memuat data">
+  <div class="loading-spinner" aria-hidden="true"></div>
+</div>
+
+<!-- ================================================================
+     MAIN CONTENT
+     ================================================================ -->
+<main class="main" role="main" id="main-content">
+
+  <!-- Demo Mode Banner -->
+  <div id="demo-banner" style="display:none;align-items:center;gap:10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:13px;color:#F59E0B;">
+    <span style="font-size:16px;">⚡</span>
+    <span><strong>DEMO MODE</strong> — Data ini adalah contoh/simulasi. Untuk data real, isi <code style="background:rgba(0,0,0,0.2);padding:1px 6px;border-radius:4px;">GOOGLE_SHEETS_API_KEY</code> di <code style="background:rgba(0,0,0,0.2);padding:1px 6px;border-radius:4px;">config/config.js</code></span>
+  </div>
+
+  <!-- Error Banner -->
+  <div class="error-banner" id="error-banner" role="alert" aria-live="assertive"></div>
+
+  <!-- Empty State -->
+  <div class="empty-state" id="empty-state" role="status">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+      <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+    </svg>
+    <h3>Data Tidak Ditemukan</h3>
+    <p id="empty-state-msg">Tidak ada data untuk filter yang dipilih. Coba ubah periode atau area.</p>
+  </div>
+
+  <!-- Dashboard Content -->
+  <div id="dashboard-content">
+
+    <!-- ============================================================
+         SUMMARY KPI BAR
+         ============================================================ -->
+    <section class="summary-bar" aria-label="Ringkasan KPI utama">
+      <div class="summary-kpi">
+        <div class="summary-kpi-label">Total Walk-in</div>
+        <div class="summary-kpi-value" id="kpi-walkin">—</div>
+      </div>
+      <div class="summary-kpi">
+        <div class="summary-kpi-label">Total Deal</div>
+        <div class="summary-kpi-value" id="kpi-deal">—</div>
+      </div>
+      <div class="summary-kpi">
+        <div class="summary-kpi-label">Total Loss</div>
+        <div class="summary-kpi-value" id="kpi-loss">—</div>
+      </div>
+      <div class="summary-kpi">
+        <div class="summary-kpi-label">Conversion Rate</div>
+        <div class="summary-kpi-value" id="kpi-conv-rate">—</div>
+      </div>
+      <div class="summary-kpi">
+        <div class="summary-kpi-label">CSI Rate</div>
+        <div class="summary-kpi-value" id="kpi-csi-rate">—</div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         MODULE GRID
+         ============================================================ -->
+    <div class="modules-grid" role="region" aria-label="Modul KPI">
+
+      <!-- ── MODULE 1: TRAFFIC & CONVERSION ── -->
+      <article class="card card-full" aria-labelledby="m1-title">
+        <div class="card-header">
+          <h2 class="card-title" id="m1-title">
+            <span class="card-title-icon icon-blue" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </span>
+            Traffic &amp; Conversion
+          </h2>
+          <span class="card-badge">Target Conv: <span id="m1-target-badge">40%</span></span>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-item">
+            <div class="kpi-item-label">Walk-in</div>
+            <div class="kpi-item-value" id="m1-walkin">—</div>
+          </div>
+          <div class="kpi-item">
+            <div class="kpi-item-label">Deal</div>
+            <div class="kpi-item-value" id="m1-deal">—</div>
+          </div>
+          <div class="kpi-item">
+            <div class="kpi-item-label">Loss</div>
+            <div class="kpi-item-value" id="m1-loss">—</div>
+          </div>
+          <div class="kpi-item">
+            <div class="kpi-item-label">Conversion Rate</div>
+            <div class="kpi-item-value kpi-success" id="m1-conv">—</div>
+            <div class="target-pill">Target: 40%</div>
+          </div>
+          <div class="kpi-item">
+            <div class="kpi-item-label">Loss Rate</div>
+            <div class="kpi-item-value" id="m1-loss-rate">—</div>
+          </div>
+        </div>
+
+        <div class="chart-wrap chart-wrap-tall">
+          <canvas id="chart-traffic" aria-label="Grafik harian Walk-in vs Deal vs Loss"></canvas>
+        </div>
+      </article>
+
+      <!-- ── MODULE 2: CUSTOMER SOURCE ── -->
+      <article class="card" aria-labelledby="m2-title">
+        <div class="card-header">
+          <h2 class="card-title" id="m2-title">
+            <span class="card-title-icon icon-teal" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </span>
+            Customer Source
+          </h2>
+        </div>
+
+        <div class="source-grid">
+          <div class="source-item">
+            <div class="source-item-label">User Database (I)</div>
+            <div class="source-item-value" id="m2-db">—</div>
+          </div>
+          <div class="source-item">
+            <div class="source-item-label">Google Bisnis (J)</div>
+            <div class="source-item-value" id="m2-google">—</div>
+          </div>
+          <div class="source-item">
+            <div class="source-item-label">Sosial Media (K)</div>
+            <div class="source-item-value" id="m2-sosmed">—</div>
+          </div>
+          <div class="source-item">
+            <div class="source-item-label">Omnichannel (L)</div>
+            <div class="source-item-value" id="m2-o2o">—</div>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="chart-source" aria-label="Distribusi sumber customer"></canvas>
+        </div>
+      </article>
+
+      <!-- ── MODULE 3: ERASPACE MEMBERSHIP ── -->
+      <article class="card" aria-labelledby="m3-title">
+        <div class="card-header">
+          <h2 class="card-title" id="m3-title">
+            <span class="card-title-icon icon-teal" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            </span>
+            Eraspace Membership
+          </h2>
+          <span class="card-badge">Target: 80%</span>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-item">
+            <div class="kpi-item-label">Member Eraspace</div>
+            <div class="kpi-item-value" id="m3-member">—</div>
+          </div>
+          <div class="kpi-item">
+            <div class="kpi-item-label">Non-Member</div>
+            <div class="kpi-item-value" id="m3-non-member">—</div>
+          </div>
+          <div class="kpi-item">
+            <div class="kpi-item-label">Penetrasi</div>
+            <div class="kpi-item-value kpi-success" id="m3-rate">—</div>
+            <div class="target-pill">Target: 80%</div>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div>
+          <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Penetrasi Eraspace">
+            <div class="progress-fill danger" id="m3-progress-bar" style="width:0%"></div>
+          </div>
+          <div class="progress-labels">
+            <span class="progress-pct" id="m3-progress-label">0%</span>
+            <span class="progress-target" id="m3-target-label">Target: 80%</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- ── MODULE 4: BUNDLING VIDEO LITE ── -->
+      <article class="card" aria-labelledby="m4-title">
+        <div class="card-header">
+          <h2 class="card-title" id="m4-title">
+            <span class="card-title-icon icon-purple" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </span>
+            Bundling Video Lite
+          </h2>
+          <span class="card-badge">Target Attach: 30%</span>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-item">
+            <div class="kpi-item-label">Total Bundling</div>
+            <div class="kpi-item-value" id="m4-bundling">—</div>
+          </div>
+          <div class="kpi-item">
+            <div class="kpi-item-label">Attach Rate</div>
+            <div class="kpi-item-value" id="m4-rate">—</div>
+            <div class="target-pill">Target: 30%</div>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="chart-bundling" aria-label="Grafik harian Bundling vs Total Deal"></canvas>
+        </div>
+      </article>
+
+      <!-- ── MODULE 5: CSI REVIEW ── -->
+      <article class="card" aria-labelledby="m5-title">
+        <div class="card-header">
+          <h2 class="card-title" id="m5-title">
+            <span class="card-title-icon icon-teal" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            </span>
+            CSI Review Rate
+          </h2>
+          <span class="card-badge">Target: 90%</span>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-item">
+            <div class="kpi-item-label">Total CSI Review</div>
+            <div class="kpi-item-value" id="m5-csi">—</div>
+          </div>
+          <div class="kpi-item">
+            <div class="kpi-item-label">CSI Rate</div>
+            <div class="kpi-item-value" id="m5-rate">—</div>
+            <div class="target-pill">Target: 90%</div>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="chart-csi" aria-label="Grafik tren harian CSI Rate"></canvas>
+        </div>
+      </article>
+
+      <!-- ── MODULE 6: GOOGLE BISNIS REVIEW ── -->
+      <article class="card" aria-labelledby="m6-title">
+        <div class="card-header">
+          <h2 class="card-title" id="m6-title">
+            <span class="card-title-icon icon-amber" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            Google Bisnis Review
+          </h2>
+          <span class="card-badge">Target: 50%</span>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-item">
+            <div class="kpi-item-label">Total Google Review</div>
+            <div class="kpi-item-value" id="m6-greview">—</div>
+          </div>
+          <div class="kpi-item">
+            <div class="kpi-item-label">Review Rate</div>
+            <div class="kpi-item-value" id="m6-rate">—</div>
+            <div class="target-pill">Target: 50%</div>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="chart-greview" aria-label="Grafik Google Review Rate per toko"></canvas>
+        </div>
+      </article>
+
+      <!-- ── MODULE 7: INSTAGRAM FOLLOW ── -->
+      <article class="card" aria-labelledby="m7-title">
+        <div class="card-header">
+          <h2 class="card-title" id="m7-title">
+            <span class="card-title-icon icon-purple" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+            </span>
+            IG Follow Rate
+          </h2>
+          <span class="card-badge">Target: 30%</span>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi-item">
+            <div class="kpi-item-label">Total IG Follow</div>
+            <div class="kpi-item-value" id="m7-ig">—</div>
+          </div>
+          <div class="kpi-item">
+            <div class="kpi-item-label">IG Follow Rate</div>
+            <div class="kpi-item-value" id="m7-rate">—</div>
+            <div class="target-pill">Target: 30%</div>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="chart-ig" aria-label="Grafik IG Follow Rate per toko"></canvas>
+        </div>
+      </article>
+
+    </div><!-- /modules-grid -->
+
+    <!-- ============================================================
+         STORE TABLE
+         ============================================================ -->
+    <section class="table-section" aria-labelledby="table-title">
+      <div class="table-section-header">
+        <h2 class="section-title" id="table-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>
+          Performa per Toko
+        </h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:11px;color:var(--text-muted)">Klik kolom untuk urutkan</span>
+          <span class="status-chip chip-green">Hijau ≥ Target</span>
+          <span class="status-chip chip-yellow">Kuning 80–99%</span>
+          <span class="status-chip chip-red">Merah &lt; 80%</span>
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table id="store-table" aria-label="Tabel performa per toko, klik header untuk mengurutkan">
+          <thead>
+            <tr>
+              <th data-sort="toko">Nama Toko</th>
+              <th data-sort="walkin">Walk-in</th>
+              <th data-sort="deal">Deal</th>
+              <th data-sort="conv">Conv %</th>
+              <th data-sort="eraspace">Eraspace %</th>
+              <th data-sort="bundle">Bundle %</th>
+              <th data-sort="csi">CSI %</th>
+              <th data-sort="greview">G-Review %</th>
+              <th data-sort="ig">IG Follow %</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="9" style="text-align:center;color:var(--text-muted);padding:32px;">
+                Memuat data...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         AI INSIGHT + WA REPORT
+         ============================================================ -->
+    <div class="actions-bar" role="toolbar" aria-label="Aksi laporan">
+      <button class="btn btn-blue" id="btn-wa" aria-label="Kirim laporan harian via WhatsApp">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.11 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.1 7.78a16 16 0 006.12 6.12l1.14-1.14a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+        Kirim Laporan WA
+      </button>
+    </div>
+
+    <section class="ai-section" aria-labelledby="ai-title">
+      <div class="ai-header">
+        <div class="ai-title" id="ai-title">
+          <div class="ai-icon" aria-hidden="true">🤖</div>
+          ERA-CSI AI Insight
+          <span style="font-size:11px;color:var(--text-muted);font-weight:400">powered by Claude</span>
+        </div>
+        <button class="btn btn-primary" id="btn-insight" aria-label="Generate analisis AI berdasarkan data saat ini">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          Generate Insight
+        </button>
+      </div>
+
+      <div class="ai-output empty" id="insight-output">
+        Klik "Generate Insight" untuk analisis performa otomatis oleh AI.
+      </div>
+    </section>
+
+  </div><!-- /dashboard-content -->
+</main>
+
+<!-- ================================================================
+     FOOTER
+     ================================================================ -->
+<footer class="footer" role="contentinfo">
+  <div class="footer-text">ERA-CSI Dashboard &copy; 2025 · Erajaya Digital Region 5</div>
+  <div class="footer-brand">
+    by <span>Ghesang Pratano L.</span> · VMD Assistant Manager · Auto-refresh: 5 menit
+  </div>
+</footer>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+<!-- Visually hidden for screen readers -->
+<style>
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+</style>
+
+<!-- App Logic -->
+<script src="js/app.js"></script>
+
+</body>
+</html>
