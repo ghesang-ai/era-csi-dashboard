@@ -302,9 +302,12 @@ function applyFilters() {
       if (!r.date) return false;
       const d = new Date(r.date.getFullYear(), r.date.getMonth(), r.date.getDate());
       const diff = today - d;
-      if (f.periode === 'today')  return d.getTime() === today.getTime();
-      if (f.periode === 'week')   return diff >= 0 && diff < 7 * 86400000;
-      if (f.periode === 'month')  return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+      if (f.periode === 'today')     return d.getTime() === today.getTime();
+      if (f.periode === 'mtd')       return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear() && d <= today;
+      if (f.periode === 'lastmonth') {
+        const lm = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        return d.getFullYear() === lm.getFullYear() && d.getMonth() === lm.getMonth();
+      }
       return true; // 'all'
     });
   } else {
