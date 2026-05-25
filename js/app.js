@@ -253,21 +253,38 @@ function rowToRecord(row) {
 // FILTERS & DROPDOWNS
 // =====================================================================
 function populateDropdowns() {
-  // Toko dropdown
-  const tokoSel = document.getElementById('filter-toko');
-  if (tokoSel) {
-    const tokos = [...new Set(rawData.map(r => (r[COL.TOKO] || '').trim()).filter(Boolean))].sort();
-    while (tokoSel.options.length > 1) tokoSel.remove(1);
-    tokos.forEach(t => tokoSel.appendChild(new Option(t, t)));
-  }
-
-  // TSH (supervisor) dropdown
+  // TSH dropdown — dari semua rawData (historis)
   const tshSel = document.getElementById('filter-tsh');
   if (tshSel) {
     const tshs = [...new Set(rawData.map(r => (r[COL.TSH] || '').trim()).filter(Boolean))].sort();
+    const curTsh = tshSel.value;
     while (tshSel.options.length > 1) tshSel.remove(1);
     tshs.forEach(t => tshSel.appendChild(new Option(t, t)));
+    if (curTsh && tshs.includes(curTsh)) tshSel.value = curTsh;
   }
+
+  // Toko dropdown — filter berdasarkan TSH yang dipilih
+  populateTokoDropdown();
+}
+
+function populateTokoDropdown() {
+  const tshVal  = document.getElementById('filter-tsh')?.value || 'all';
+  const tokoSel = document.getElementById('filter-toko');
+  if (!tokoSel) return;
+
+  // Ambil semua toko dari rawData (historis) sesuai TSH
+  const source = tshVal === 'all'
+    ? rawData
+    : rawData.filter(r => (r[COL.TSH] || '').trim() === tshVal);
+
+  const tokos = [...new Set(source.map(r => (r[COL.TOKO] || '').trim()).filter(Boolean))].sort();
+  const curToko = tokoSel.value;
+  while (tokoSel.options.length > 1) tokoSel.remove(1);
+  tokos.forEach(t => tokoSel.appendChild(new Option(t, t)));
+
+  // Pertahankan pilihan toko kalau masih valid, kalau tidak reset ke 'all'
+  if (curToko && tokos.includes(curToko)) tokoSel.value = curToko;
+  else tokoSel.value = 'all';
 }
 
 function getFilters() {
@@ -949,7 +966,10 @@ function setupFilters() {
 }
 
 function setupEventListeners() {
-  document.getElementById('filter-tsh')?.addEventListener('change', applyFilters);
+  document.getElementById('filter-tsh')?.addEventListener('change', () => {
+    populateTokoDropdown(); // refresh toko sesuai TSH yang dipilih
+    applyFilters();
+  });
   document.getElementById('filter-toko')?.addEventListener('change', applyFilters);
   document.getElementById('filter-periode')?.addEventListener('change', applyFilters);
   document.getElementById('filter-date-from')?.addEventListener('change', applyFilters);
