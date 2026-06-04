@@ -174,7 +174,20 @@ async function fetchData() {
     }
 
     const data = await res.json();
-    rawData = (data.values || []).filter(row => row.length > 6 && row[COL.WALKIN]);
+    rawData = (data.values || []).filter(row => row.length > 4);
+
+    // Debug: log raw data to console for diagnosis
+    console.log('[ERA-CSI] Total rows from Sheets:', (data.values || []).length,
+      '→ after filter:', rawData.length);
+    if (rawData.length > 0) {
+      const lastRows = rawData.slice(-5);
+      console.log('[ERA-CSI] Last 5 TANGGAL:', lastRows.map(r => r[COL.TANGGAL]));
+      console.log('[ERA-CSI] Last 5 TIMESTAMP:', lastRows.map(r => r[COL.TIMESTAMP]));
+      console.log('[ERA-CSI] Last 5 parsed dates:', lastRows.map(r => {
+        const d = parseDate(r);
+        return d ? d.toLocaleDateString('id-ID') : 'NULL';
+      }));
+    }
 
     if (rawData.length === 0) {
       showEmpty('Data belum ada. Pastikan Google Form sudah diisi dan Sheet ID/API Key benar.');
@@ -210,33 +223,36 @@ function parseDate(row) {
   const iso = src.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3]);
 
-  // X/X/YYYY — bisa DD/MM atau MM/DD
+  // X/X/YYYY atau X-X-YYYY — bisa DD/MM atau MM/DD
   const p = src.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
   if (p) {
     const a = +p[1], b = +p[2], y = +p[3];
 
-    // Jelas D/M: angka pertama > 12
+    // Jelas D/M: angka pertama > 12 (tidak valid sebagai bulan)
     if (a > 12 && b <= 12) return new Date(y, b - 1, a);
     // Jelas M/D: angka kedua > 12 (Google Forms US format)
     if (b > 12 && a <= 12) return new Date(y, a - 1, b);
 
     // Ambiguous (keduanya ≤ 12): pakai bulan dari Timestamp sebagai hint
-    // Google Forms Timestamp selalu M/D/YYYY H:MM:SS
-    if (ts && src !== ts) {
-      const tsP = ts.match(/^(\d{1,2})\//);
+    // Google Forms Timestamp SELALU M/D/YYYY H:MM:SS (US locale)
+    if (ts) {
+      const tsP = ts.match(/^(\d{1,2})[\/\-]/);
       if (tsP) {
         const tsMonth = +tsP[1] - 1; // 0-indexed
-        if (a - 1 === tsMonth) return new Date(y, a - 1, b); // M/D cocok
-        if (b - 1 === tsMonth) return new Date(y, b - 1, a); // D/M cocok
+        if (a - 1 === tsMonth) return new Date(y, a - 1, b); // a=bulan (M/D)
+        if (b - 1 === tsMonth) return new Date(y, b - 1, a); // b=bulan (D/M)
       }
     }
-    // Default: M/D/YYYY (Google Forms / Google Sheets default)
+    // Default fallback: M/D/YYYY (Google Forms / Google Sheets US locale default)
     return new Date(y, a - 1, b);
   }
 
-  // Fallback ke JS Date parser
+  // Fallback ke JS Date parser (handles "June 1, 2026", etc.)
   const d = new Date(src);
-  return isNaN(d.getTime()) ? null : d;
+  if (!isNaN(d.getTime())) return d;
+
+  console.warn('[ERA-CSI] parseDate: cannot parse:', JSON.stringify(src), '| ts:', JSON.stringify(ts));
+  return null;
 }
 
 function rowToRecord(row) {
@@ -369,7 +385,16 @@ function applyFilters() {
   filteredRecords = records;
 
   if (records.length === 0) {
-    showEmpty('Tidak ada data untuk filter yang dipilih. Coba ubah periode atau supervisor.');
+    const now2 = new Date();
+    const debugParts = [`Total data: ${rawData.length} baris`];
+    if (rawData.length > 0) {
+      const lastRow = rawData[rawData.length - 1];
+      const lastParsed = parseDate(lastRow);
+      debugParts.push(`Data terakhir: "${lastRow[COL.TANGGAL]}" → ${lastParsed ? lastParsed.toLocaleDateString('id-ID') : '⚠ gagal parse'}`);
+      debugParts.push(`Filter: ${f.periode} | Hari ini: ${now2.toLocaleDateString('id-ID')}`);
+    }
+    console.warn('[ERA-CSI] applyFilters → 0 records. Debug:', debugParts.join(' | '));
+    showEmpty(debugParts.join(' · '));
     return;
   }
 
