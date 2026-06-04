@@ -201,24 +201,41 @@ function parseNum(val) {
 }
 
 function parseDate(row) {
-  // Try column C (TANGGAL) first, then A (Timestamp)
-  const raw = row[COL.TANGGAL] || row[COL.TIMESTAMP] || '';
-  if (!raw) return null;
+  const raw = (row[COL.TANGGAL] || '').trim();
+  const ts  = (row[COL.TIMESTAMP] || '').trim();
+  const src = raw || ts;
+  if (!src) return null;
 
-  // DD/MM/YYYY or DD-MM-YYYY (Indonesian format — check this FIRST)
-  const dmy = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-  if (dmy) {
-    const d = +dmy[1], m = +dmy[2], y = +dmy[3];
-    // If day > 12, it must be DD/MM; otherwise assume DD/MM (Indonesian default)
-    if (d >= 1 && d <= 31 && m >= 1 && m <= 12) return new Date(y, m - 1, d);
-  }
-
-  // YYYY-MM-DD (ISO date)
-  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  // ISO YYYY-MM-DD (tidak ambigu)
+  const iso = src.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3]);
 
-  // Full ISO timestamp
-  const d = new Date(raw);
+  // X/X/YYYY — bisa DD/MM atau MM/DD
+  const p = src.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (p) {
+    const a = +p[1], b = +p[2], y = +p[3];
+
+    // Jelas D/M: angka pertama > 12
+    if (a > 12 && b <= 12) return new Date(y, b - 1, a);
+    // Jelas M/D: angka kedua > 12 (Google Forms US format)
+    if (b > 12 && a <= 12) return new Date(y, a - 1, b);
+
+    // Ambiguous (keduanya ≤ 12): pakai bulan dari Timestamp sebagai hint
+    // Google Forms Timestamp selalu M/D/YYYY H:MM:SS
+    if (ts && src !== ts) {
+      const tsP = ts.match(/^(\d{1,2})\//);
+      if (tsP) {
+        const tsMonth = +tsP[1] - 1; // 0-indexed
+        if (a - 1 === tsMonth) return new Date(y, a - 1, b); // M/D cocok
+        if (b - 1 === tsMonth) return new Date(y, b - 1, a); // D/M cocok
+      }
+    }
+    // Default: M/D/YYYY (Google Forms / Google Sheets default)
+    return new Date(y, a - 1, b);
+  }
+
+  // Fallback ke JS Date parser
+  const d = new Date(src);
   return isNaN(d.getTime()) ? null : d;
 }
 
