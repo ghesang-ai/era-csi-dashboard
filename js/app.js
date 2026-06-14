@@ -429,10 +429,19 @@ function aggregate(records) {
 
 function rate(a, b) { return b > 0 ? (a / b * 100) : 0; }
 
+// Format Date sebagai YYYY-MM-DD pakai komponen LOKAL (bukan UTC).
+// toISOString() menggeser ke UTC → di WIB (UTC+7) tanggal mundur 1 hari.
+function localISODate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function groupByDate(records) {
   return records.reduce((acc, r) => {
     const key = r.date
-      ? r.date.toISOString().slice(0, 10)
+      ? localISODate(r.date)
       : (r.dateStr || '').slice(0, 10);
     if (!key) return acc;
     if (!acc[key]) acc[key] = {
