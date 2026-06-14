@@ -243,8 +243,9 @@ function parseDate(row) {
         if (b - 1 === tsMonth) return new Date(y, b - 1, a); // b=bulan (D/M)
       }
     }
-    // Default fallback: M/D/YYYY (Google Forms / Google Sheets US locale default)
-    return new Date(y, a - 1, b);
+    // Default fallback: D/M/YYYY (kolom TANGGAL sheet ini pakai format Indonesia,
+    // mis. "01/06/2026" = 1 Juni, "14/06/2026" = 14 Juni)
+    return new Date(y, b - 1, a);
   }
 
   // Fallback ke JS Date parser (handles "June 1, 2026", etc.)
