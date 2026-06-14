@@ -243,9 +243,10 @@ function parseDate(row) {
         if (b - 1 === tsMonth) return new Date(y, b - 1, a); // b=bulan (D/M)
       }
     }
-    // Default fallback: D/M/YYYY (kolom TANGGAL sheet ini pakai format Indonesia,
-    // mis. "01/06/2026" = 1 Juni, "14/06/2026" = 14 Juni)
-    return new Date(y, b - 1, a);
+    // Default fallback: M/D/YYYY. Data sheet ini (Google Form) konsisten M/D,
+    // mis. "5/31/2026" = 31 Mei, "6/7/2026" = 7 Juni. Kasus ambigu (hari<=12)
+    // sudah ditangani hint Timestamp di atas; ini hanya jaring pengaman.
+    return new Date(y, a - 1, b);
   }
 
   // Fallback ke JS Date parser (handles "June 1, 2026", etc.)
