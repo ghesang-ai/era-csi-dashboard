@@ -1135,7 +1135,17 @@ function updateLastRefresh() {
 
 function showDemoBanner(visible) {
   const el = document.getElementById('demo-banner');
-  if (el) el.style.display = visible ? 'flex' : 'none';
+  if (!el) return;
+  if (visible) {
+    el.innerHTML = `
+      <strong>⚠ DEMO MODE AKTIF</strong>
+      &nbsp;—&nbsp; config.js tidak terbaca atau API key belum dikonfigurasi.
+      Data yang tampil adalah <strong>data contoh</strong>, bukan data Google Sheets nyata.
+    `;
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
 }
 
 function showLoading(visible) {
