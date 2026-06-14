@@ -157,6 +157,7 @@ async function fetchData() {
       // Tampilkan demo data — dashboard bisa dilihat tanpa API key
       showDemoBanner(true);
       rawData = getDemoRows();
+      detectDateOrder(rawData);
       populateDropdowns();
       applyFilters();
       showLoading(false);
@@ -175,6 +176,7 @@ async function fetchData() {
 
     const data = await res.json();
     rawData = (data.values || []).filter(row => row.length > 4);
+    detectDateOrder(rawData);
 
     // Debug: log raw data to console for diagnosis
     console.log('[ERA-CSI] Total rows from Sheets:', (data.values || []).length,
@@ -213,6 +215,26 @@ function parseNum(val) {
   return isNaN(n) ? 0 : n;
 }
 
+// Urutan tanggal yang terdeteksi dari dataset: 'DMY' (DD/MM), 'MDY' (MM/DD), atau null.
+// Tiap sheet bisa beda format (config produksi vs lokal), jadi jangan hardcode —
+// deteksi dari baris yang tidak ambigu (angka > 12).
+let dateOrder = null;
+
+function detectDateOrder(rows) {
+  let dmy = 0, mdy = 0;
+  for (const row of rows) {
+    const raw = (row[COL.TANGGAL] || '').trim();
+    const p = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-]\d{4}/);
+    if (!p) continue;
+    const a = +p[1], b = +p[2];
+    if (a > 12 && b <= 12) dmy++;       // angka pertama > 12 → pasti hari → DD/MM
+    else if (b > 12 && a <= 12) mdy++;  // angka kedua > 12 → pasti hari → MM/DD
+  }
+  dateOrder = (dmy === 0 && mdy === 0) ? null : (dmy >= mdy ? 'DMY' : 'MDY');
+  console.log(`[ERA-CSI] Date order: ${dateOrder} (DMY=${dmy}, MDY=${mdy})`);
+  return dateOrder;
+}
+
 function parseDate(row) {
   const raw = (row[COL.TANGGAL] || '').trim();
   const ts  = (row[COL.TIMESTAMP] || '').trim();
@@ -230,11 +252,15 @@ function parseDate(row) {
 
     // Jelas D/M: angka pertama > 12 (tidak valid sebagai bulan)
     if (a > 12 && b <= 12) return new Date(y, b - 1, a);
-    // Jelas M/D: angka kedua > 12 (Google Forms US format)
+    // Jelas M/D: angka kedua > 12
     if (b > 12 && a <= 12) return new Date(y, a - 1, b);
 
-    // Ambiguous (keduanya ≤ 12): pakai bulan dari Timestamp sebagai hint
-    // Google Forms Timestamp SELALU M/D/YYYY H:MM:SS (US locale)
+    // Ambiguous (keduanya ≤ 12):
+    // 1) Pakai format yang terdeteksi dari dataset (paling andal, dari kolom yang sama)
+    if (dateOrder === 'DMY') return new Date(y, b - 1, a);
+    if (dateOrder === 'MDY') return new Date(y, a - 1, b);
+    // 2) Tidak ada baris unambiguous → pakai bulan dari Timestamp sebagai hint.
+    //    Google Forms Timestamp SELALU M/D/YYYY H:MM:SS (US locale).
     if (ts) {
       const tsP = ts.match(/^(\d{1,2})[\/\-]/);
       if (tsP) {
@@ -243,9 +269,7 @@ function parseDate(row) {
         if (b - 1 === tsMonth) return new Date(y, b - 1, a); // b=bulan (D/M)
       }
     }
-    // Default fallback: M/D/YYYY. Data sheet ini (Google Form) konsisten M/D,
-    // mis. "5/31/2026" = 31 Mei, "6/7/2026" = 7 Juni. Kasus ambigu (hari<=12)
-    // sudah ditangani hint Timestamp di atas; ini hanya jaring pengaman.
+    // 3) Default terakhir: M/D/YYYY
     return new Date(y, a - 1, b);
   }
 
