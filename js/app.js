@@ -147,7 +147,7 @@ async function fetchData() {
       SPREADSHEET_ID,
       GOOGLE_SHEETS_API_KEY,
       SHEET_NAME = 'Form Responses 1',
-      RANGE = 'A2:R1000',
+      RANGE = 'A2:R5000',
     } = CONFIG;
 
     const isDemo = !GOOGLE_SHEETS_API_KEY ||
